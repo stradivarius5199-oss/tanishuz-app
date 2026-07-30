@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "postinstall": "pnpm --filter @sparks-uz/db db:generate",
     "start": "node dist/index.js",
     "lint": "eslint src",
     "test": "vitest"
