@@ -5,6 +5,7 @@ interface User {
   id: string;
   email: string;
   profile?: any;
+  isAdmin?: boolean;
 }
 
 interface AuthState {
