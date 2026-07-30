@@ -1,0 +1,300 @@
+// Sparks UZ — Prisma Database Schema
+// База данных приложения для знакомств (Узбекистан)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// ПОЛЬЗОВАТЕЛЬ (аккаунт + авторизация)
+// ─────────────────────────────────────────────
+model User {
+  id            String    @id @default(cuid())
+  email         String?   @unique
+  phone         String?   @unique
+  passwordHash  String?
+  telegramId    String?   @unique
+  googleId      String?   @unique
+
+  emailVerified Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  isBanned      Boolean   @default(false)
+  isAdmin       Boolean   @default(false)
+  banReason     String?
+
+  role          UserRole  @default(USER)
+
+  profile       Profile?
+  sentLikes     Like[]    @relation("SentLikes")
+  receivedLikes Like[]    @relation("ReceivedLikes")
+  matchesA      Match[]   @relation("MatchUserA")
+  matchesB      Match[]   @relation("MatchUserB")
+  messages      Message[]
+  reports       Report[]  @relation("ReportedBy")
+  reportedIn    Report[]  @relation("ReportedUser")
+  tokens        RefreshToken[]
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("users")
+}
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+// ─────────────────────────────────────────────
+// ПРОФИЛЬ (публичные данные)
+// ─────────────────────────────────────────────
+model Profile {
+  id            String      @id @default(cuid())
+  userId        String      @unique
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Основная информация
+  name          String
+  birthDate     DateTime
+  gender        Gender
+  lookingFor    Gender[]    // кого ищет
+  goal          DatingGoal  @default(RELATIONSHIP)
+
+  // Местонахождение
+  city          String?
+  cityUz        String?     // название города на узбекском
+  latitude      Float?
+  longitude     Float?
+
+  // О себе (многоязычный)
+  bioRu         String?     @db.Text // о себе на русском
+  bioUz         String?     @db.Text // о себе на узбекском
+  bioEn         String?     @db.Text // о себе на английском
+
+  // Анкета
+  education     Education?
+  profession    String?
+  religion      Religion?
+  height        Int?        // в см
+  hasChildren   Boolean?
+  wantsChildren Boolean?
+
+  // Интересы (теги)
+  interests     String[]
+
+  // Фото
+  photos        Photo[]
+
+  // Настройки поиска
+  searchGender  Gender?
+  searchAgeMin  Int         @default(18)
+  searchAgeMax  Int         @default(50)
+  searchRadius  Int         @default(50) // км
+
+  // Приватность
+  showDistance  Boolean     @default(true)
+  blurPhotos    Boolean     @default(false) // блюр до матча
+
+  // Статистика
+  likesCount    Int         @default(0)
+  matchesCount  Int         @default(0)
+
+  isVerified    Boolean     @default(false)
+  isComplete    Boolean     @default(false) // анкета заполнена
+  lastActive    DateTime    @default(now())
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("profiles")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  // нет OTHER — уважение к традиционным ценностям UZ
+}
+
+enum DatingGoal {
+  FRIENDSHIP    // дружба
+  RELATIONSHIP  // отношения
+  MARRIAGE      // брак
+}
+
+enum Education {
+  SCHOOL
+  COLLEGE
+  BACHELOR
+  MASTER
+  PHD
+}
+
+enum Religion {
+  ISLAM
+  CHRISTIAN
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+// ─────────────────────────────────────────────
+// ФОТОГРАФИИ
+// ─────────────────────────────────────────────
+model Photo {
+  id            String      @id @default(cuid())
+  profileId     String
+  profile       Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  url           String      // Cloudinary URL
+  publicId      String      // Cloudinary public_id
+  thumbnailUrl  String?     // оптимизированный вариант
+  order         Int         @default(0) // порядок отображения
+  isMain        Boolean     @default(false)
+  isApproved    Boolean     @default(false) // прошло модерацию
+  nsfwScore     Float?      // результат NSFW-проверки (0-1)
+
+  createdAt     DateTime    @default(now())
+
+  @@map("photos")
+}
+
+// ─────────────────────────────────────────────
+// ЛАЙКИ
+// ─────────────────────────────────────────────
+model Like {
+  id            String      @id @default(cuid())
+  fromUserId    String
+  toUserId      String
+  fromUser      User        @relation("SentLikes", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser        User        @relation("ReceivedLikes", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  type          LikeType    @default(LIKE)
+
+  createdAt     DateTime    @default(now())
+
+  @@unique([fromUserId, toUserId])
+  @@index([toUserId])
+  @@map("likes")
+}
+
+enum LikeType {
+  LIKE        // обычный лайк
+  SUPER_LIKE  // суперлайк
+}
+
+// ─────────────────────────────────────────────
+// МАТЧИ (взаимный лайк)
+// ─────────────────────────────────────────────
+model Match {
+  id            String      @id @default(cuid())
+  userAId       String
+  userBId       String
+  userA         User        @relation("MatchUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB         User        @relation("MatchUserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  messages      Message[]
+
+  // кто видел уведомление о матче
+  seenByA       Boolean     @default(false)
+  seenByB       Boolean     @default(false)
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+  @@map("matches")
+}
+
+// ─────────────────────────────────────────────
+// СООБЩЕНИЯ
+// ─────────────────────────────────────────────
+model Message {
+  id            String        @id @default(cuid())
+  matchId       String
+  senderId      String
+  match         Match         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sender        User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  type          MessageType   @default(TEXT)
+  text          String?       @db.Text
+  imageUrl      String?       // URL фото в сообщении
+
+  // Статусы доставки
+  deliveredAt   DateTime?
+  readAt        DateTime?
+
+  createdAt     DateTime      @default(now())
+
+  @@index([matchId])
+  @@map("messages")
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  EMOJI
+}
+
+// ─────────────────────────────────────────────
+// ЖАЛОБЫ (модерация)
+// ─────────────────────────────────────────────
+model Report {
+  id            String        @id @default(cuid())
+  reportedById  String
+  reportedUserId String
+  reportedBy    User          @relation("ReportedBy", fields: [reportedById], references: [id])
+  reportedUser  User          @relation("ReportedUser", fields: [reportedUserId], references: [id])
+
+  reason        ReportReason
+  description   String?       @db.Text
+  status        ReportStatus  @default(PENDING)
+  resolvedAt    DateTime?
+  resolvedBy    String?
+
+  createdAt     DateTime      @default(now())
+
+  @@map("reports")
+}
+
+enum ReportReason {
+  FAKE_PROFILE      // фейк
+  INAPPROPRIATE     // неприемлемый контент
+  SPAM              // спам
+  HARASSMENT        // домогательства
+  UNDERAGE          // несовершеннолетний
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING    // на рассмотрении
+  REVIEWED   // рассмотрена
+  RESOLVED   // решена
+  DISMISSED  // отклонена
+}
+
+// ─────────────────────────────────────────────
+// REFRESH ТОКЕНЫ
+// ─────────────────────────────────────────────
+model RefreshToken {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token         String    @unique
+  expiresAt     DateTime
+  isRevoked     Boolean   @default(false)
+  userAgent     String?
+  ip            String?
+
+  createdAt     DateTime  @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
