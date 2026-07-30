@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-primary: #FF2E93;
+  --color-brand-secondary: #FF8A00;
+  --color-bg-light: #F9FAFB;
+  --color-bg-dark: #111827;
+}
+
+@layer base {
+  :root {
+    --background: var(--color-bg-light);
+    --foreground: var(--color-bg-dark);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: var(--color-bg-dark);
+      --foreground: var(--color-bg-light);
+    }
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-gradient-to-r from-[var(--color-brand-primary)] to-[var(--color-brand-secondary)] text-white font-semibold py-3 px-6 rounded-full shadow-lg shadow-pink-500/30 transition-transform active:scale-95;
+  }
+}
