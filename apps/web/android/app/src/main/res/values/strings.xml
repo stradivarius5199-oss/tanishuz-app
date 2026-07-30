@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Sparks UZ</string>
+    <string name="title_activity_main">Sparks UZ</string>
+    <string name="package_name">com.sparks.uz.app</string>
+    <string name="custom_url_scheme">com.sparks.uz.app</string>
+</resources>
