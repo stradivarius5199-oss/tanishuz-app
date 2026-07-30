@@ -1,176 +1,157 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Shield, Ban, CheckCircle, ChevronLeft, Search } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
-import { useAuthStore } from '@/store/useAuthStore';
-import Avatar from '@/components/Avatar';
+import { useRouter } from 'next/navigation';
 
-export default function AdminScreen() {
+export default function AdminDashboard() {
+  const [stats, setStats] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [stats, setStats] = useState<any>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const { user } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
-    if (user && !user.isAdmin) {
-      // Исключительно для MVP, пускаем только админа
-      router.replace('/');
-    } else {
-      loadUsers();
+    async function loadData() {
+      try {
+        const statsData = await apiFetch('/admin/stats');
+        const usersData = await apiFetch('/admin/users');
+        setStats(statsData);
+        setUsers(usersData.users);
+      } catch (err: any) {
+        setError(err.message || 'Ошибка загрузки данных');
+        if (err.message.includes('Доступ запрещен') || err.message.includes('403')) {
+           router.push('/');
+        }
+      } finally {
+        setLoading(false);
+      }
     }
-  }, [user]);
+    loadData();
+  }, [router]);
 
-  const loadUsers = async () => {
+  const handleBan = async (userId: string) => {
     try {
-      const [usersData, statsData] = await Promise.all([
-        apiFetch('/admin/users'),
-        apiFetch('/admin/stats')
-      ]);
-      setUsers(usersData.users || []);
-      setStats(statsData || null);
+      const res = await apiFetch(`/admin/users/${userId}/ban`, { method: 'POST' });
+      setUsers(users.map(u => u.id === userId ? { ...u, isBanned: res.user.isBanned } : u));
     } catch (err: any) {
-      setError(err.message || 'Ошибка загрузки пользователей');
-    } finally {
-      setLoading(false);
+      alert(err.message);
     }
   };
 
-  const handleToggleBan = async (id: string, isBanned: boolean) => {
-    if (!confirm(`Вы уверены, что хотите ${isBanned ? 'разбанить' : 'забанить'} этого пользователя?`)) return;
-    try {
-      await apiFetch(`/admin/users/${id}/ban`, { method: 'POST' });
-      setUsers(users.map(u => u.id === id ? { ...u, isBanned: !u.isBanned } : u));
-    } catch (err: any) {
-      alert(err.message || 'Ошибка при бане');
-    }
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
-  const filteredUsers = users.filter(u => 
-    u.email?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.profile?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  if (error) {
+    return (
+      <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-6 rounded-2xl text-center shadow-lg backdrop-blur-md">
+        <h2 className="text-xl font-bold mb-2">Отказано в доступе</h2>
+        <p>{error}</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[var(--background)] flex flex-col p-4 md:p-8">
-      <header className="flex items-center gap-4 mb-8">
-        <button onClick={() => router.push('/')} className="p-3 bg-white dark:bg-gray-800 rounded-full shadow-sm hover:scale-105 transition-transform">
-          <ChevronLeft className="w-6 h-6" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Shield className="w-6 h-6 text-pink-500" />
-            Админ Панель
-          </h1>
-          <p className="text-sm text-gray-500">Управление пользователями</p>
-        </div>
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <header>
+        <h2 className="text-3xl font-bold text-white mb-2">Обзор платформы</h2>
+        <p className="text-slate-400">Статистика и управление пользователями</p>
       </header>
 
-      {error && (
-        <div className="bg-red-50 text-red-500 p-4 rounded-2xl mb-6">
-          {error}
-        </div>
-      )}
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard title="Всего пользователей" value={stats.totalUsers} icon="👥" color="from-blue-500 to-cyan-400" />
+        <StatCard title="Мэтчи" value={stats.totalMatches} icon="💖" color="from-pink-500 to-rose-400" />
+        <StatCard title="Сообщения" value={stats.totalMessages} icon="💬" color="from-purple-500 to-indigo-400" />
+        <StatCard title="Фотографии" value={stats.totalPhotos} icon="📸" color="from-orange-500 to-amber-400" />
+        <StatCard title="Лайки" value={stats.totalLikes} icon="👍" color="from-emerald-500 to-teal-400" />
+        <StatCard title="Заблокированы" value={stats.bannedUsers} icon="🚫" color="from-red-500 to-rose-600" />
+        <StatCard title="Мужчины" value={stats.maleProfiles} icon="👨" color="from-slate-600 to-slate-500" />
+        <StatCard title="Женщины" value={stats.femaleProfiles} icon="👩" color="from-slate-600 to-slate-500" />
+      </div>
 
-      {/* STATS DASHBOARD */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white dark:bg-gray-900 p-4 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col items-center justify-center text-center">
-            <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">{stats.totalUsers}</div>
-            <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Всего Юзеров</div>
-          </div>
-          <div className="bg-white dark:bg-gray-900 p-4 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col items-center justify-center text-center">
-            <div className="text-3xl font-bold text-pink-500 mb-1">{stats.totalMatches}</div>
-            <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Матчей</div>
-          </div>
-          <div className="bg-white dark:bg-gray-900 p-4 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col items-center justify-center text-center">
-            <div className="text-3xl font-bold text-blue-500 mb-1">{stats.totalMessages}</div>
-            <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Сообщений</div>
-          </div>
-          <div className="bg-white dark:bg-gray-900 p-4 rounded-3xl border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col items-center justify-center text-center">
-            <div className="text-3xl font-bold text-red-500 mb-1">{stats.bannedUsers}</div>
-            <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Забанено</div>
-          </div>
+      {/* Users Table */}
+      <div className="bg-[#1E293B] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-800/20">
+          <h3 className="text-xl font-bold text-white">Пользователи</h3>
         </div>
-      )}
-
-      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 dark:border-gray-800">
-          <div className="relative max-w-md">
-            <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Поиск по имени или email..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-pink-500 transition-all text-sm"
-            />
-          </div>
-        </div>
-
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-500 font-semibold uppercase tracking-wider text-xs">
+            <thead className="bg-slate-900/50 text-slate-400">
               <tr>
-                <th className="px-6 py-4">Профиль</th>
-                <th className="px-6 py-4">Email</th>
-                <th className="px-6 py-4">Статус</th>
-                <th className="px-6 py-4">Город</th>
-                <th className="px-6 py-4 text-right">Действия</th>
+                <th className="px-6 py-4 font-medium">Email</th>
+                <th className="px-6 py-4 font-medium">Имя</th>
+                <th className="px-6 py-4 font-medium">Город</th>
+                <th className="px-6 py-4 font-medium">Роль</th>
+                <th className="px-6 py-4 font-medium">Статус</th>
+                <th className="px-6 py-4 font-medium text-right">Действия</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="p-8 text-center text-gray-500">Загрузка...</td>
-                </tr>
-              ) : filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="p-8 text-center text-gray-500">Пользователи не найдены</td>
-                </tr>
-              ) : filteredUsers.map(u => (
-                <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+            <tbody className="divide-y divide-slate-800/50">
+              {users.map(user => (
+                <tr key={user.id} className="hover:bg-slate-800/30 transition-colors">
+                  <td className="px-6 py-4 text-slate-300 font-medium">{user.email}</td>
+                  <td className="px-6 py-4 text-slate-400">{user.profile?.name || '—'}</td>
+                  <td className="px-6 py-4 text-slate-400">{user.profile?.city || '—'}</td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                        <Avatar name={u.profile?.name || '?'} className="w-full h-full" />
-                      </div>
-                      <div className="font-semibold">{u.profile?.name || 'Нет профиля'}</div>
-                    </div>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                      user.role === 'ADMIN' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/20' : 'bg-slate-700 text-slate-300'
+                    }`}>
+                      {user.role}
+                    </span>
                   </td>
-                  <td className="px-6 py-4 text-gray-500">{u.email || '-'}</td>
                   <td className="px-6 py-4">
-                    {u.isBanned ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-100 text-red-600 rounded-full text-xs font-semibold">
-                        <Ban className="w-3.5 h-3.5" /> Забанен
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-600 rounded-full text-xs font-semibold">
-                        <CheckCircle className="w-3.5 h-3.5" /> Активен
-                      </span>
-                    )}
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                      user.isBanned ? 'bg-red-500/20 text-red-400 border border-red-500/20' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'
+                    }`}>
+                      {user.isBanned ? 'Заблокирован' : 'Активен'}
+                    </span>
                   </td>
-                  <td className="px-6 py-4 text-gray-500">{u.profile?.city || '-'}</td>
                   <td className="px-6 py-4 text-right">
-                    <button 
-                      onClick={() => handleToggleBan(u.id, u.isBanned)}
-                      className={`px-4 py-2 rounded-xl font-semibold text-xs transition-colors ${
-                        u.isBanned ? 'bg-gray-100 hover:bg-gray-200 text-gray-700' : 'bg-red-50 hover:bg-red-100 text-red-600'
-                      }`}
-                    >
-                      {u.isBanned ? 'Разбанить' : 'Забанить'}
-                    </button>
+                    {user.role !== 'ADMIN' && (
+                      <button
+                        onClick={() => handleBan(user.id)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-lg ${
+                          user.isBanned 
+                            ? 'bg-slate-700 hover:bg-slate-600 text-white' 
+                            : 'bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20'
+                        }`}
+                      >
+                        {user.isBanned ? 'Разблокировать' : 'Заблокировать'}
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
+              {users.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                    Нет пользователей
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+function StatCard({ title, value, icon, color }: { title: string; value: number; icon: string; color: string }) {
+  return (
+    <div className="bg-[#1E293B] border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
+      <div className={`absolute -right-4 -top-4 w-24 h-24 bg-gradient-to-br ${color} rounded-full opacity-10 blur-2xl group-hover:opacity-20 transition-opacity duration-500`}></div>
+      <div className="flex justify-between items-start mb-4">
+        <h3 className="text-slate-400 font-medium text-sm">{title}</h3>
+        <span className="text-2xl">{icon}</span>
+      </div>
+      <p className="text-3xl font-bold text-white tracking-tight">{value}</p>
     </div>
   );
 }

@@ -47,13 +47,17 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     // Хэшируем пароль
-    const passwordHash = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const isAdminEmail = email.toLowerCase() === 'stradivarius5199@gmail.com';
 
     // Создаём пользователя + профиль
     const user = await prisma.user.create({
       data: {
-        email,
-        passwordHash,
+        email: email.toLowerCase(),
+        passwordHash: hashedPassword,
+        role: isAdminEmail ? 'ADMIN' : 'USER',
+        isAdmin: isAdminEmail,
         profile: {
           create: {
             name,
