@@ -12,9 +12,7 @@
     "db:seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
-    "@prisma/client": "^5.14.0"
-  },
-  "devDependencies": {
+    "@prisma/client": "^5.14.0",
     "prisma": "^5.14.0",
     "typescript": "^5.4.0",
     "ts-node": "^10.9.0"
