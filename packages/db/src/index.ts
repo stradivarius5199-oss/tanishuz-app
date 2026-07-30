@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
+declare const process: any;
+
 // Предотвращаем множественные инстансы в dev (Next.js hot reload)
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
