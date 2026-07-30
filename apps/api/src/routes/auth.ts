@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { OAuth2Client } from 'google-auth-library';
 
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID');
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || '387281742438-8lqihf77fcekb4mqtis76tdcfu8npll1.apps.googleusercontent.com');
 
 // ── Validation schemas ──
 const registerSchema = z.object({

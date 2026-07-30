@@ -29,7 +29,7 @@ export default function AuthScreen() {
   useEffect(() => {
     // ????????????? Google Auth ??? Web
     GoogleAuth.initialize({
-      clientId: 'YOUR_WEB_CLIENT_ID', // TODO: User needs to replace this
+      clientId: '387281742438-8lqihf77fcekb4mqtis76tdcfu8npll1.apps.googleusercontent.com', // TODO: User needs to replace this
       scopes: ['profile', 'email'],
       grantOfflineAccess: true,
     });
