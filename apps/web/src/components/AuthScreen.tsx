@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Mail, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
+import { Heart, Mail, Lock, User as UserIcon, ArrowRight, Loader2 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from '@/lib/i18n';
-
-const GOOGLE_CLIENT_ID = '387281742438-8lqihf77fcekb4mqtis76tdcfu8npll1.apps.googleusercontent.com';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
+import { useEffect } from 'react';
 
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
@@ -26,17 +26,29 @@ export default function AuthScreen() {
   const { t } = useTranslation();
   const router = useRouter();
 
-  const googleBtnRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // ????????????? Google Auth ??? Web
+    GoogleAuth.initialize({
+      clientId: '387281742438-8lqihf77fcekb4mqtis76tdcfu8npll1.apps.googleusercontent.com', // TODO: User needs to replace this
+      scopes: ['profile', 'email'],
+      grantOfflineAccess: true,
+    });
+  }, []);
 
-  const handleGoogleCredential = async (idToken: string) => {
+  const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     setError('');
     try {
+      const user = await GoogleAuth.signIn();
+      const idToken = user.authentication.idToken;
+
       const data = await apiFetch('/auth/google', {
         method: 'POST',
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify({ idToken })
       });
-      login(data.accessToken, data.refreshToken, data.user);
+
+      login(data.accessToken, data.refreshToken, data.user); // JWT returns token, we mock refreshToken with same token for now if needed
+
       if (!data.user.profile?.isComplete) {
         router.push('/onboarding');
       } else {
@@ -44,67 +56,11 @@ export default function AuthScreen() {
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Ошибка авторизации Google');
+      setError('Ошибка авторизации Google');
     } finally {
       setGoogleLoading(false);
     }
   };
-
-  useEffect(() => {
-    // Загружаем Google Identity Services SDK
-    const scriptId = 'google-gsi-script';
-    const load = () => {
-      const script = document.createElement('script');
-      script.id = scriptId;
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
-      script.onload = () => initGoogleBtn();
-      document.head.appendChild(script);
-    };
-    if (!document.getElementById(scriptId)) {
-      load();
-    } else if ((window as any).google) {
-      initGoogleBtn();
-    }
-
-    // Слушаем токен из redirect-ответа (для Android WebView)
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('google_token');
-    if (token) {
-      handleGoogleCredential(token);
-      // Убираем параметр из URL
-      const url = new URL(window.location.href);
-      url.searchParams.delete('google_token');
-      window.history.replaceState({}, '', url.toString());
-    }
-  }, []);
-
-  const initGoogleBtn = () => {
-    const google = (window as any).google;
-    if (!google || !googleBtnRef.current) return;
-    google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: (res: any) => handleGoogleCredential(res.credential),
-      ux_mode: 'popup',
-    });
-    google.accounts.id.renderButton(googleBtnRef.current, {
-      theme: 'outline',
-      size: 'large',
-      width: 340,
-      text: 'continue_with',
-      locale: 'ru',
-    });
-  };
-
-  const handleGoogleLogin = () => {
-    // Используем OAuth2 redirect — работает в Android WebView
-    const redirectUri = encodeURIComponent(window.location.origin + '/auth/google/callback');
-    const scope = encodeURIComponent('openid email profile');
-    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&prompt=select_account`;
-    window.location.href = url;
-  };
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -252,18 +208,26 @@ export default function AuthScreen() {
             </div>
           </div>
           
-          {/* Google GSI rendered button — official Google button */}
-          <div className="mt-4 flex justify-center" ref={googleBtnRef}></div>
-
-          {/* Fallback button if GSI hasn't loaded yet */}
-          {googleLoading && (
-            <div className="mt-2 w-full flex items-center justify-center gap-2 py-3 text-sm text-gray-500">
-              <div className="w-4 h-4 border-2 border-gray-400 border-t-gray-900 rounded-full animate-spin"></div>
-              Входим через Google...
-            </div>
-          )}
+          <button
+            onClick={handleGoogleLogin}
+            disabled={loading || googleLoading}
+            className="mt-4 w-full bg-white text-gray-900 border border-gray-200 hover:bg-gray-50 font-bold py-3.5 px-4 rounded-2xl shadow-sm transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {googleLoading ? (
+              <div className="w-5 h-5 border-2 border-gray-400 border-t-gray-900 rounded-full animate-spin"></div>
+            ) : (
+              <>
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                Продолжить с Google
+              </>
+            )}
+          </button>
         </div>
-
 
         <div className="mt-8 text-center text-sm">
           <p className="text-gray-500 dark:text-gray-400">
