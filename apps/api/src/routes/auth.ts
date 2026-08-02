@@ -299,6 +299,109 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(500).send({ error: 'Ошибка авторизации Google: ' + err.message });
     }
   });
+
+  // ────────────────────────────────────────
+  // POST /api/auth/google/callback  (OAuth2 code exchange for Android WebView)
+  // ────────────────────────────────────────
+  app.post('/google/callback', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { code, redirectUri } = request.body as { code: string; redirectUri: string };
+
+      if (!code || !redirectUri) {
+        return reply.code(400).send({ error: 'code and redirectUri are required' });
+      }
+
+      const GOOGLE_CLIENT_ID_VAL = process.env.GOOGLE_CLIENT_ID || '387281742438-8lqihf77fcekb4mqtis76tdcfu8npll1.apps.googleusercontent.com';
+      const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+
+      // 1. Обмениваем code на tokens
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code,
+          client_id: GOOGLE_CLIENT_ID_VAL,
+          client_secret: GOOGLE_CLIENT_SECRET,
+          redirect_uri: redirectUri,
+          grant_type: 'authorization_code',
+        }),
+      });
+
+      const tokenData = await tokenRes.json() as any;
+      if (!tokenData.id_token) {
+        return reply.code(400).send({ error: 'Не удалось получить id_token от Google: ' + JSON.stringify(tokenData) });
+      }
+
+      // 2. Верифицируем id_token
+      const ticket = await googleClient.verifyIdToken({
+        idToken: tokenData.id_token,
+        audience: GOOGLE_CLIENT_ID_VAL,
+      });
+
+      const payload = ticket.getPayload();
+      if (!payload || !payload.email) {
+        return reply.code(400).send({ error: 'Invalid Google token payload' });
+      }
+
+      const email = payload.email.toLowerCase();
+      const name = payload.name || 'Google User';
+      const picture = payload.picture;
+
+      // 3. Ищем или создаём пользователя
+      let user = await prisma.user.findUnique({
+        where: { email },
+        include: { profile: { include: { photos: true } } },
+      });
+
+      if (!user) {
+        const isAdminEmail = email === 'stradivarius5199@gmail.com';
+        const created = await prisma.user.create({
+          data: {
+            email,
+            role: isAdminEmail ? 'ADMIN' : 'USER',
+            isAdmin: isAdminEmail,
+            profile: {
+              create: {
+                name,
+                gender: 'MALE',
+                birthDate: new Date('2000-01-01'),
+                bioRu: 'Авторизован через Google',
+              },
+            },
+          },
+          include: { profile: { include: { photos: true } } },
+        });
+        if (picture && created.profile) {
+          await prisma.photo.create({
+            data: {
+              profileId: created.profile.id,
+              url: picture,
+              publicId: 'google_avatar',
+              isMain: true,
+              isApproved: true,
+            },
+          });
+        }
+        user = created;
+      }
+
+      if (user!.isBanned) {
+        return reply.code(403).send({ error: 'Ваш аккаунт заблокирован' });
+      }
+
+      const { accessToken, refreshToken } = await generateTokens(app, user!.id);
+
+      return reply.send({
+        message: 'Вход через Google выполнен',
+        user: sanitizeUser(user!),
+        accessToken,
+        refreshToken,
+      });
+    } catch (err: any) {
+      app.log.error('Google Callback Error: ' + err.message);
+      return reply.code(500).send({ error: 'Ошибка Google callback: ' + err.message });
+    }
+  });
 }
 
 

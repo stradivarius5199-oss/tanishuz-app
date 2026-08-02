@@ -28,11 +28,10 @@ export default function AuthScreen() {
 
   const googleBtnRef = useRef<HTMLDivElement>(null);
 
-  const handleGoogleCredential = async (response: any) => {
+  const handleGoogleCredential = async (idToken: string) => {
     setGoogleLoading(true);
     setError('');
     try {
-      const idToken = response.credential;
       const data = await apiFetch('/auth/google', {
         method: 'POST',
         body: JSON.stringify({ idToken }),
@@ -54,7 +53,7 @@ export default function AuthScreen() {
   useEffect(() => {
     // Загружаем Google Identity Services SDK
     const scriptId = 'google-gsi-script';
-    if (!document.getElementById(scriptId)) {
+    const load = () => {
       const script = document.createElement('script');
       script.id = scriptId;
       script.src = 'https://accounts.google.com/gsi/client';
@@ -62,8 +61,22 @@ export default function AuthScreen() {
       script.defer = true;
       script.onload = () => initGoogleBtn();
       document.head.appendChild(script);
-    } else {
+    };
+    if (!document.getElementById(scriptId)) {
+      load();
+    } else if ((window as any).google) {
       initGoogleBtn();
+    }
+
+    // Слушаем токен из redirect-ответа (для Android WebView)
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('google_token');
+    if (token) {
+      handleGoogleCredential(token);
+      // Убираем параметр из URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('google_token');
+      window.history.replaceState({}, '', url.toString());
     }
   }, []);
 
@@ -72,23 +85,26 @@ export default function AuthScreen() {
     if (!google || !googleBtnRef.current) return;
     google.accounts.id.initialize({
       client_id: GOOGLE_CLIENT_ID,
-      callback: handleGoogleCredential,
+      callback: (res: any) => handleGoogleCredential(res.credential),
+      ux_mode: 'popup',
     });
     google.accounts.id.renderButton(googleBtnRef.current, {
       theme: 'outline',
       size: 'large',
-      width: googleBtnRef.current.offsetWidth || 360,
+      width: 340,
       text: 'continue_with',
       locale: 'ru',
     });
   };
 
   const handleGoogleLogin = () => {
-    const google = (window as any).google;
-    if (google) {
-      google.accounts.id.prompt();
-    }
+    // Используем OAuth2 redirect — работает в Android WebView
+    const redirectUri = encodeURIComponent(window.location.origin + '/auth/google/callback');
+    const scope = encodeURIComponent('openid email profile');
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&prompt=select_account`;
+    window.location.href = url;
   };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
