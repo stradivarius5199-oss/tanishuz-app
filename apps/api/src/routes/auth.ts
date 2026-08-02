@@ -212,6 +212,91 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.send({ user: sanitizeUser(user) });
     }
   );
+
+  // ────────────────────────────────────────
+  // POST /api/auth/google
+  // ────────────────────────────────────────
+  app.post('/google', async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { idToken } = request.body as { idToken: string };
+
+      if (!idToken) {
+        return reply.code(400).send({ error: 'idToken is required' });
+      }
+
+      // 1. Верифицируем токен через Google
+      const ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: process.env.GOOGLE_CLIENT_ID || '387281742438-8lqihf77fcekb4mqtis76tdcfu8npll1.apps.googleusercontent.com',
+      });
+
+      const payload = ticket.getPayload();
+      if (!payload || !payload.email) {
+        return reply.code(400).send({ error: 'Invalid Google token' });
+      }
+
+      const email = payload.email.toLowerCase();
+      const name = payload.name || 'Google User';
+      const picture = payload.picture;
+
+      // 2. Ищем или создаём пользователя
+      let user = await prisma.user.findUnique({
+        where: { email },
+        include: { profile: { include: { photos: true } } },
+      });
+
+      if (!user) {
+        const isAdminEmail = email === 'stradivarius5199@gmail.com';
+
+        user = await prisma.user.create({
+          data: {
+            email,
+            role: isAdminEmail ? 'ADMIN' : 'USER',
+            isAdmin: isAdminEmail,
+            profile: {
+              create: {
+                name,
+                gender: 'MALE',
+                birthDate: new Date('2000-01-01'),
+                bio: 'Авторизован через Google',
+              },
+            },
+          },
+          include: { profile: { include: { photos: true } } },
+        });
+
+        // Сохраняем аватарку из Google
+        if (picture && user.profile) {
+          await prisma.photo.create({
+            data: {
+              profileId: user.profile.id,
+              url: picture,
+              publicId: 'google_avatar',
+              isMain: true,
+              isApproved: true,
+            },
+          });
+        }
+      }
+
+      if (user.isBanned) {
+        return reply.code(403).send({ error: 'Ваш аккаунт заблокирован' });
+      }
+
+      // 3. Выдаём наши JWT токены
+      const { accessToken, refreshToken } = await generateTokens(app, user.id);
+
+      return reply.send({
+        message: 'Вход через Google выполнен',
+        user: sanitizeUser(user),
+        accessToken,
+        refreshToken,
+      });
+    } catch (err: any) {
+      app.log.error('Google Auth Error: ' + err.message);
+      return reply.code(500).send({ error: 'Ошибка авторизации Google: ' + err.message });
+    }
+  });
 }
 
 // ── Helpers ──

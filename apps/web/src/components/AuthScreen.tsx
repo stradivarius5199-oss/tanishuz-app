@@ -47,7 +47,7 @@ export default function AuthScreen() {
         body: JSON.stringify({ idToken })
       });
 
-      login(data.token, data.token, data.user); // JWT returns token, we mock refreshToken with same token for now if needed
+      login(data.accessToken, data.refreshToken, data.user);
 
       if (!data.user.profile?.isComplete) {
         router.push('/onboarding');
