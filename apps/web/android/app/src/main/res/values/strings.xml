@@ -4,4 +4,5 @@
     <string name="title_activity_main">Sparks UZ</string>
     <string name="package_name">com.sparks.uz.app</string>
     <string name="custom_url_scheme">com.sparks.uz.app</string>
+    <string name="server_client_id">387281742438-8lqihf77fcekb4mqtis76tdcfu8npll1.apps.googleusercontent.com</string>
 </resources>
