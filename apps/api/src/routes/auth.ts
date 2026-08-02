@@ -248,7 +248,7 @@ export async function authRoutes(app: FastifyInstance) {
       if (!user) {
         const isAdminEmail = email === 'stradivarius5199@gmail.com';
 
-        user = await prisma.user.create({
+        const created = await prisma.user.create({
           data: {
             email,
             role: isAdminEmail ? 'ADMIN' : 'USER',
@@ -258,7 +258,7 @@ export async function authRoutes(app: FastifyInstance) {
                 name,
                 gender: 'MALE',
                 birthDate: new Date('2000-01-01'),
-                bio: 'Авторизован через Google',
+                bioRu: 'Авторизован через Google',
               },
             },
           },
@@ -266,10 +266,10 @@ export async function authRoutes(app: FastifyInstance) {
         });
 
         // Сохраняем аватарку из Google
-        if (picture && user.profile) {
+        if (picture && created.profile) {
           await prisma.photo.create({
             data: {
-              profileId: user.profile.id,
+              profileId: created.profile.id,
               url: picture,
               publicId: 'google_avatar',
               isMain: true,
@@ -277,18 +277,20 @@ export async function authRoutes(app: FastifyInstance) {
             },
           });
         }
+
+        user = created;
       }
 
-      if (user.isBanned) {
+      if (user!.isBanned) {
         return reply.code(403).send({ error: 'Ваш аккаунт заблокирован' });
       }
 
       // 3. Выдаём наши JWT токены
-      const { accessToken, refreshToken } = await generateTokens(app, user.id);
+      const { accessToken, refreshToken } = await generateTokens(app, user!.id);
 
       return reply.send({
         message: 'Вход через Google выполнен',
-        user: sanitizeUser(user),
+        user: sanitizeUser(user!),
         accessToken,
         refreshToken,
       });
@@ -298,6 +300,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
   });
 }
+
 
 // ── Helpers ──
 
