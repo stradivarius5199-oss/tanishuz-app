@@ -1,6 +1,6 @@
 import Cookies from 'js-cookie';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://tanishuz-app.onrender.com/api';
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
   const token = Cookies.get('accessToken');
