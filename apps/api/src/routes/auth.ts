@@ -40,8 +40,10 @@ export async function authRoutes(app: FastifyInstance) {
 
     const { email, password, name } = body.data;
 
+    const normalizedEmail = email.toLowerCase();
+
     // Проверка: email уже занят?
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       return reply.code(409).send({
         error: 'Conflict',
@@ -57,7 +59,7 @@ export async function authRoutes(app: FastifyInstance) {
     // Создаём пользователя + профиль
     const user = await prisma.user.create({
       data: {
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         passwordHash: hashedPassword,
         role: isAdminEmail ? 'ADMIN' : 'USER',
         isAdmin: isAdminEmail,
@@ -94,9 +96,10 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const { email, password } = body.data;
+    const normalizedEmail = email.toLowerCase();
 
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
       include: { profile: true },
     });
 

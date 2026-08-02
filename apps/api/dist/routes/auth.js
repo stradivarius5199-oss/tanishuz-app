@@ -38,8 +38,9 @@ async function authRoutes(app) {
             });
         }
         const { email, password, name } = body.data;
+        const normalizedEmail = email.toLowerCase();
         // Проверка: email уже занят?
-        const existing = await db_1.prisma.user.findUnique({ where: { email } });
+        const existing = await db_1.prisma.user.findUnique({ where: { email: normalizedEmail } });
         if (existing) {
             return reply.code(409).send({
                 error: 'Conflict',
@@ -52,7 +53,7 @@ async function authRoutes(app) {
         // Создаём пользователя + профиль
         const user = await db_1.prisma.user.create({
             data: {
-                email: email.toLowerCase(),
+                email: normalizedEmail,
                 passwordHash: hashedPassword,
                 role: isAdminEmail ? 'ADMIN' : 'USER',
                 isAdmin: isAdminEmail,
@@ -85,8 +86,9 @@ async function authRoutes(app) {
             return reply.code(400).send({ error: 'Validation Error', issues: body.error.issues });
         }
         const { email, password } = body.data;
+        const normalizedEmail = email.toLowerCase();
         const user = await db_1.prisma.user.findUnique({
-            where: { email },
+            where: { email: normalizedEmail },
             include: { profile: true },
         });
         // Защита от timing attack — всегда проверяем хэш
