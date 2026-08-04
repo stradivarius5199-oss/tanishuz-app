@@ -91,35 +91,12 @@ export default function DiscoverScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--background)] flex flex-col relative overflow-hidden">
-      {/* Header */}
-      <header className="flex justify-between items-center p-4 z-10">
-        <button 
-          onClick={() => router.push('/profile')}
-          className="p-3 bg-white dark:bg-gray-800 rounded-full shadow-sm text-gray-500 hover:text-pink-500 transition-colors"
-        >
-          <User className="w-6 h-6" />
-        </button>
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-500 to-orange-400 flex items-center justify-center p-0.5">
-            <div className="w-full h-full bg-white dark:bg-gray-900 rounded-full flex items-center justify-center overflow-hidden">
-              <Avatar 
-                src={null} // Заглушка, чтобы брало имя. В реальном приложении можно передать profile.photos[0]
-                name={user?.profile?.name || 'User'} 
-                className="w-full h-full"
-              />
-            </div>
-          </div>
-          <span className="text-xl font-outfit font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-orange-400">
-            Tanishuz
-          </span>
-        </div>
-        <button 
-          onClick={() => router.push('/matches')}
-          className="p-3 bg-white dark:bg-gray-800 rounded-full shadow-sm text-gray-500 hover:text-pink-500 transition-colors"
-        >
-          <MessageCircle className="w-6 h-6" />
-        </button>
+    <div className="h-full flex flex-col relative overflow-hidden">
+      {/* Top Logo only */}
+      <header className="flex justify-center items-center p-4 z-10">
+        <span className="text-2xl font-outfit font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-orange-400">
+          Sparks
+        </span>
       </header>
 
       {/* Main Swipe Area */}
