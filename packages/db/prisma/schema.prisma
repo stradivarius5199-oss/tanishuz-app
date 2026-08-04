@@ -183,6 +183,7 @@ model Like {
 }
 
 enum LikeType {
+  DISLIKE
   LIKE        // обычный лайк
   SUPER_LIKE  // суперлайк
 }

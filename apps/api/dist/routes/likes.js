@@ -43,7 +43,7 @@ async function likeRoutes(app) {
             where: { fromUserId_toUserId: { fromUserId: toUserId, toUserId: fromUserId } },
         });
         let match = null;
-        if (mutualLike) {
+        if (mutualLike && mutualLike.type !== 'DISLIKE') {
             // Убеждаемся в уникальном порядке (userA < userB по алфавиту)
             const [userAId, userBId] = [fromUserId, toUserId].sort();
             match = await db_1.prisma.match.upsert({
@@ -70,8 +70,12 @@ async function likeRoutes(app) {
     app.delete('/:toUserId', { preHandler: [app.authenticate] }, async (request, reply) => {
         const { id: fromUserId } = request.user;
         const { toUserId } = request.params;
-        // Создаём запись "nope" как пустой лайк чтобы не показывать снова
-        // (реализуем через создание лайка типа NOPE в будущем, пока просто пропускаем)
+        // Создаём запись "DISLIKE", чтобы исключить пользователя из будущей выдачи
+        await db_1.prisma.like.upsert({
+            where: { fromUserId_toUserId: { fromUserId, toUserId } },
+            update: { type: 'DISLIKE' },
+            create: { fromUserId, toUserId, type: 'DISLIKE' },
+        });
         return reply.send({ message: 'Пропущено' });
     });
 }

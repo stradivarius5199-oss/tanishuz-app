@@ -54,7 +54,7 @@ export async function likeRoutes(app: FastifyInstance) {
       });
 
       let match = null;
-      if (mutualLike) {
+      if (mutualLike && mutualLike.type !== 'DISLIKE') {
         // Убеждаемся в уникальном порядке (userA < userB по алфавиту)
         const [userAId, userBId] = [fromUserId, toUserId].sort();
 
@@ -90,8 +90,13 @@ export async function likeRoutes(app: FastifyInstance) {
       const { id: fromUserId } = (request as any).user;
       const { toUserId } = request.params as { toUserId: string };
 
-      // Создаём запись "nope" как пустой лайк чтобы не показывать снова
-      // (реализуем через создание лайка типа NOPE в будущем, пока просто пропускаем)
+      // Создаём запись "DISLIKE", чтобы исключить пользователя из будущей выдачи
+      await prisma.like.upsert({
+        where: { fromUserId_toUserId: { fromUserId, toUserId } },
+        update: { type: 'DISLIKE' },
+        create: { fromUserId, toUserId, type: 'DISLIKE' },
+      });
+
       return reply.send({ message: 'Пропущено' });
     }
   );
