@@ -100,4 +100,67 @@ export async function likeRoutes(app: FastifyInstance) {
       return reply.send({ message: 'Пропущено' });
     }
   );
+
+  // ────────────────────────────────────────
+  // GET /api/likes/received
+  // Получить список тех, кто лайкнул меня (для Premium вкладки)
+  // ────────────────────────────────────────
+  app.get(
+    '/received',
+    { preHandler: [(app as any).authenticate] },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id: userId } = (request as any).user;
+
+      // Получаем всех, кто лайкнул нас
+      const receivedLikes = await prisma.like.findMany({
+        where: { 
+          toUserId: userId,
+          type: { in: ['LIKE', 'SUPER_LIKE'] }
+        },
+        include: {
+          fromUser: {
+            include: {
+              profile: {
+                include: {
+                  photos: {
+                    where: { isApproved: true, isMain: true },
+                    take: 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      // Получаем наши матчи, чтобы исключить их из списка "Лайков"
+      const myMatches = await prisma.match.findMany({
+        where: {
+          OR: [{ userAId: userId }, { userBId: userId }]
+        }
+      });
+      const matchUserIds = new Set(
+        myMatches.map(m => m.userAId === userId ? m.userBId : m.userAId)
+      );
+
+      // Фильтруем тех, с кем уже есть матч
+      const pendingLikes = receivedLikes
+        .filter(like => !matchUserIds.has(like.fromUserId) && like.fromUser.profile)
+        .map(like => {
+          const profile = like.fromUser.profile!;
+          return {
+            userId: like.fromUserId,
+            name: profile.name,
+            birthDate: profile.birthDate,
+            photoUrl: profile.photos[0]?.url || null,
+            type: like.type,
+            blurPhotos: profile.blurPhotos,
+            createdAt: like.createdAt
+          };
+        });
+
+      return reply.send({ likes: pendingLikes, total: pendingLikes.length });
+    }
+  );
 }
