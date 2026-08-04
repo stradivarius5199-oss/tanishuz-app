@@ -97,7 +97,22 @@ export async function uploadRoutes(app: FastifyInstance) {
         },
       });
 
-      return reply.code(201).send({ photo });
+      // Пересчитываем isComplete
+      const isComplete = Boolean(
+        profile.name &&
+        profile.birthDate &&
+        profile.gender &&
+        profile.city &&
+        (profile.bioRu || profile.bioUz || profile.bioEn) &&
+        (profile.photos.length + 1 > 0)
+      );
+
+      await prisma.profile.update({
+        where: { id: profile.id },
+        data: { isComplete },
+      });
+
+      return reply.code(201).send({ photo, isComplete });
     }
   );
 
